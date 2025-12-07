@@ -6,15 +6,20 @@ import pandas as pd
 from utils import BrainTumorDataset
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
-from utils import Net
+from utils import CNN, NN
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import AsyncGenerator
 import torch.optim as optim
+from enum import Enum
 
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+class AvailableModels(str, Enum):
+    CNN = "cnn"
+    NN = "nn"
 
 
 class TrainRequest(BaseModel):
@@ -23,6 +28,7 @@ class TrainRequest(BaseModel):
     batch_size: int = Field(default=32)
     num_epochs: int = Field(default=10)
     save_path: str = Field(description="The path to save the model to on the host. Include the model name.")
+    model_type: AvailableModels = Field(default=AvailableModels.CNN)
 
 
 app = FastAPI(
@@ -53,7 +59,11 @@ async def training_generator(request: TrainRequest) -> AsyncGenerator:
     train_dataloader = DataLoader(train_dataset, batch_size=request.batch_size)
     validation_dataloader = DataLoader(validation_dataset, batch_size=request.batch_size)
 
-    net = Net().to(DEVICE)
+    match request.model_type:
+        case AvailableModels.CNN:
+            net = CNN().to(DEVICE)
+        case AvailableModels.NN:
+            net = NN().to(DEVICE)
 
     criterion = nn.BCELoss()
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)

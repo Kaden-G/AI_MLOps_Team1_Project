@@ -29,7 +29,27 @@ class BrainTumorDataset(Dataset):
         return Grayscale()(from_numpy(image).to(float32).reshape((3, 240, 240))), tensor(label).to(float32)
 
 
-class Net(nn.Module):
+class NN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear1 = nn.Linear(240 * 240, 3_600)
+        self.linear2 = nn.Linear(3_600, 900)
+        self.linear3 = nn.Linear(900, 225)
+        self.linear4 = nn.Linear(225, 45)
+        self.linear5 = nn.Linear(45, 1)
+
+    def forward(self, x):
+        x = torch.flatten(x, 1) # flatten all dimensions except batch
+
+        x = F.relu(self.linear1(x))
+        x = F.relu(self.linear2(x))
+        x = F.relu(self.linear3(x))
+        x = F.relu(self.linear4(x))
+        x = F.sigmoid(self.linear5(x))
+        return x
+    
+
+class CNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(1, 8, 5)
@@ -53,6 +73,5 @@ class Net(nn.Module):
         x = F.relu(self.fc3(x))
         x = F.sigmoid(self.fc4(x))
         return x
-    
 
 

@@ -9,6 +9,7 @@ An example input to the training endpoint:
   "test_size": 0.2,
   "batch_size": 32,
   "num_epochs": 10,
-  "save_path": "/home/user/jhu/mlops/teamproject/models/test_1"
+  "save_path": "/home/user/jhu/mlops/teamproject/models/test_1",
+  "model_type": "cnn"
 }
 ```
