@@ -8,6 +8,36 @@ from torchvision.transforms import Grayscale
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+import numpy as np
+
+
+def preprocess_image(image_path: str) -> torch.Tensor:
+    """
+    Partner 2's preprocessing function - converts image to model-ready tensor.
+
+    This function applies the same preprocessing pipeline used during training:
+    1. Load image from file
+    2. Convert to tensor and reshape to (3, 240, 240)
+    3. Apply Grayscale transformation -> (1, 240, 240)
+    4. Add batch dimension -> (1, 1, 240, 240)
+
+    Args:
+        image_path: Path to the image file
+
+    Returns:
+        Preprocessed tensor of shape (1, 1, 240, 240) ready for model input
+    """
+    # Load image
+    image = io.imread(image_path)
+
+    # Convert to tensor and reshape to (3, 240, 240) then apply Grayscale
+    # This matches the training preprocessing pipeline
+    image_tensor = Grayscale()(from_numpy(image).to(float32).reshape((3, 240, 240)))
+
+    # Add batch dimension: (1, 240, 240) -> (1, 1, 240, 240)
+    image_tensor = image_tensor.unsqueeze(0)
+
+    return image_tensor
 
 
 class BrainTumorDataset(Dataset):

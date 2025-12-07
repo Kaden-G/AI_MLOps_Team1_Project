@@ -1,9 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 import os
 from pydantic import BaseModel, Field
 import pandas as pd
-from utils import BrainTumorDataset
+from utils import BrainTumorDataset, preprocess_image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from utils import CNN, NN
@@ -31,7 +31,23 @@ class TrainRequest(BaseModel):
     model_type: AvailableModels = Field(default=AvailableModels.CNN)
 
 
+class PredictRequest(BaseModel):
+    image_path: str = Field(description="Path to the brain MRI image to classify")
+    model_path: str = Field(description="Path to the trained model file (.pt or .pth)")
+    model_type: AvailableModels = Field(default=AvailableModels.CNN, description="Type of model architecture to load")
+
+
+class PredictResponse(BaseModel):
+    predicted_class: int = Field(description="Predicted class: 0 = No Tumor, 1 = Tumor")
+    probability: float = Field(description="Probability of tumor presence (0.0 to 1.0)")
+    confidence_percentage: float = Field(description="Confidence as percentage")
+    interpretation: str = Field(description="Human-readable interpretation of the prediction")
+
+
 app = FastAPI(
+    title="Brain Tumor Classification API",
+    description="API for training and predicting brain tumors from MRI images",
+    version="1.0.0"
 )
 
 @app.get("/")
@@ -122,9 +138,75 @@ async def training_generator(request: TrainRequest) -> AsyncGenerator:
 @app.post("/train")
 async def train(request: TrainRequest):
     return StreamingResponse(training_generator(request))
-    
 
 
+@app.post("/predict", response_model=PredictResponse)
+async def predict(request: PredictRequest):
+    """
+    Partner 3's Prediction Endpoint
+
+    Loads a trained model and predicts whether a brain MRI image contains a tumor.
+
+    Returns:
+        - predicted_class: 0 (No Tumor) or 1 (Tumor)
+        - probability: Raw probability from model (0.0 to 1.0)
+        - confidence_percentage: Confidence as percentage
+        - interpretation: Human-readable result
+    """
+    try:
+        # Validate image file exists
+        if not os.path.exists(request.image_path):
+            raise HTTPException(status_code=404, detail=f"Image file not found: {request.image_path}")
+
+        # Validate model file exists
+        if not os.path.exists(request.model_path):
+            raise HTTPException(status_code=404, detail=f"Model file not found: {request.model_path}")
+
+        # Load the appropriate model architecture (from Partner 1)
+        match request.model_type:
+            case AvailableModels.CNN:
+                model = CNN().to(DEVICE)
+            case AvailableModels.NN:
+                model = NN().to(DEVICE)
+
+        # Load the trained weights
+        model.load_state_dict(torch.load(request.model_path, map_location=DEVICE))
+        model.eval()  # Set to evaluation mode
+
+        # Preprocess the image using Partner 2's function
+        image_tensor = preprocess_image(request.image_path)
+        image_tensor = image_tensor.to(DEVICE)
+
+        # Make prediction
+        with torch.no_grad():
+            output = model(image_tensor)
+            probability = output.squeeze().item()  # Get scalar value
+
+        # Determine predicted class (threshold = 0.5)
+        predicted_class = 1 if probability >= 0.5 else 0
+
+        # Calculate confidence percentage
+        # For binary classification: confidence is distance from 0.5
+        if predicted_class == 1:
+            confidence = probability * 100
+        else:
+            confidence = (1 - probability) * 100
+
+        # Generate human-readable interpretation
+        if predicted_class == 1:
+            interpretation = f"TUMOR DETECTED - High concern (probability: {probability:.2%})"
+        else:
+            interpretation = f"NO TUMOR DETECTED - Low concern (probability: {probability:.2%})"
+
+        return PredictResponse(
+            predicted_class=predicted_class,
+            probability=probability,
+            confidence_percentage=round(confidence, 2),
+            interpretation=interpretation
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 
 
