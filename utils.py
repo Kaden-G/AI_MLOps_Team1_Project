@@ -9,9 +9,29 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import numpy as np
+import random
+
+# Deterministic seeding for reproducibility (Partner 2 requirement)
+RANDOM_SEED = 42
+
+def set_seed(seed: int = RANDOM_SEED):
+    """
+    Set random seeds for reproducibility across all libraries.
+
+    Args:
+        seed: Random seed value (default: 42)
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 
-def preprocess_image(image_path: str) -> torch.Tensor:
+def preprocess_image(image_path: str, normalize: bool = True) -> torch.Tensor:
     """
     Partner 2's preprocessing function - converts image to model-ready tensor.
 
@@ -19,10 +39,12 @@ def preprocess_image(image_path: str) -> torch.Tensor:
     1. Load image from file
     2. Convert to tensor and reshape to (3, 240, 240)
     3. Apply Grayscale transformation -> (1, 240, 240)
-    4. Add batch dimension -> (1, 1, 240, 240)
+    4. Normalize pixel values to [0, 1] range (if normalize=True)
+    5. Add batch dimension -> (1, 1, 240, 240)
 
     Args:
         image_path: Path to the image file
+        normalize: Whether to normalize pixel values to [0, 1] (default: True)
 
     Returns:
         Preprocessed tensor of shape (1, 1, 240, 240) ready for model input
@@ -34,6 +56,12 @@ def preprocess_image(image_path: str) -> torch.Tensor:
     # This matches the training preprocessing pipeline
     image_tensor = Grayscale()(from_numpy(image).to(float32).reshape((3, 240, 240)))
 
+    # Normalize pixel values to [0, 1] range (Partner 2 requirement)
+    if normalize:
+        # Images are typically in [0, 255] range, normalize to [0, 1]
+        if image_tensor.max() > 1.0:
+            image_tensor = image_tensor / 255.0
+
     # Add batch dimension: (1, 240, 240) -> (1, 1, 240, 240)
     image_tensor = image_tensor.unsqueeze(0)
 
@@ -41,22 +69,36 @@ def preprocess_image(image_path: str) -> torch.Tensor:
 
 
 class BrainTumorDataset(Dataset):
-    def __init__(self, file_paths: list[str], labels: list[int]):
+    def __init__(self, file_paths: list[str], labels: list[int], normalize: bool = True):
+        """
+        Brain Tumor MRI Dataset
+
+        Args:
+            file_paths: List of paths to image files
+            labels: List of labels (0 = no tumor, 1 = tumor)
+            normalize: Whether to normalize pixel values to [0, 1] (default: True)
+        """
         self.file_paths = file_paths
         self.labels = labels
+        self.normalize = normalize
 
 
-    
+
     def __len__(self):
         return len(self.labels)
-    
+
     def __getitem__(self, idx: int):
         image = io.imread(self.file_paths[idx])
         label = self.labels[idx]
 
+        # Convert to tensor and apply grayscale
+        image_tensor = Grayscale()(from_numpy(image).to(float32).reshape((3, 240, 240)))
 
+        # Normalize pixel values to [0, 1] range (Partner 2 requirement)
+        if self.normalize and image_tensor.max() > 1.0:
+            image_tensor = image_tensor / 255.0
 
-        return Grayscale()(from_numpy(image).to(float32).reshape((3, 240, 240))), tensor(label).to(float32)
+        return image_tensor, tensor(label).to(float32)
 
 
 class NN(nn.Module):
