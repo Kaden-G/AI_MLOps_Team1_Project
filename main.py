@@ -27,10 +27,10 @@ class AvailableModels(str, Enum):
 class TrainRequest(BaseModel):
     dataset_path: str = Field(description="The path to the dataset on the host.")
     test_size: float = Field(default=0.2, description="The percentage (as a decimal) of the data to use for a test dataset.")
-    batch_size: int = Field(default=32)
+    batch_size: int = Field(default=64)
     learning_rate: float = Field(default=0.001)
     momentum: float = Field(default=0.9)
-    num_epochs: int = Field(default=10)
+    num_epochs: int = Field(default=20)
     save_path: str = Field(description="The path to save the model to on the host. Include the model name.")
     model_type: AvailableModels = Field(default=AvailableModels.CNN)
     confusion_matrix_save_path: str | None = None
@@ -60,6 +60,8 @@ async def training_generator(request: TrainRequest) -> AsyncGenerator:
 
     train_dataset = BrainTumorDataset(file_paths=x_train, labels=y_train)
     validation_dataset = BrainTumorDataset(file_paths=x_test, labels=y_test)
+
+    print(f"Length of train data: {len(train_dataset)}, Validation data: {len(validation_dataset)}")
 
     train_dataloader = DataLoader(train_dataset, batch_size=request.batch_size)
     validation_dataloader = DataLoader(validation_dataset, batch_size=request.batch_size)

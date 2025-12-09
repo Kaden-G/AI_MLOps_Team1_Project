@@ -8,12 +8,32 @@ from torchvision.transforms import Grayscale
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from torchvision.transforms import v2
+from copy import deepcopy
 
 
 class BrainTumorDataset(Dataset):
     def __init__(self, file_paths: list[str], labels: list[int]):
         self.file_paths = file_paths
         self.labels = labels
+
+        self.transforms_each_image = [0 for x in self.file_paths]
+
+        self.original_length = len(self.labels)
+
+        self.transforms = [
+            v2.Compose([v2.Grayscale()]),
+            v2.Compose([
+                v2.Grayscale(),
+                # v2.RandomResizedCrop((240, 240), antialias=True,),
+                v2.GaussianNoise(sigma=0.05),
+                # v2.RandomAdjustSharpness(1.2, p=0.5)
+            ]),
+        ]
+
+        self.file_paths.extend(deepcopy(self.file_paths))
+        self.labels.extend(deepcopy(self.labels))
+        self.transforms_each_image.extend([1 for x in range(0, self.original_length)])
 
 
     
@@ -24,9 +44,9 @@ class BrainTumorDataset(Dataset):
         image = io.imread(self.file_paths[idx])
         label = self.labels[idx]
 
+        image = from_numpy(image).to(float32).reshape((3, 240, 240))
 
-
-        return Grayscale()(from_numpy(image).to(float32).reshape((3, 240, 240))), tensor(label).to(float32)
+        return self.transforms[self.transforms_each_image[idx]](image), tensor(label).to(float32)
 
 
 class NN(nn.Module):
