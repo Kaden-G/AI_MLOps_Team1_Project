@@ -10,6 +10,8 @@ import torch.nn.functional as F
 import torch
 import numpy as np
 import random
+from PIL import Image
+from typing import Union
 
 # Deterministic seeding for reproducibility (Partner 2 requirement)
 RANDOM_SEED = 42
@@ -31,26 +33,42 @@ def set_seed(seed: int = RANDOM_SEED):
         torch.backends.cudnn.benchmark = False
 
 
-def preprocess_image(image_path: str, normalize: bool = True) -> torch.Tensor:
+def preprocess_image(image_input: Union[str, Image.Image], normalize: bool = True) -> torch.Tensor:
     """
     Partner 2's preprocessing function - converts image to model-ready tensor.
 
     This function applies the same preprocessing pipeline used during training:
-    1. Load image from file
+    1. Load image from file path OR accept PIL Image directly
     2. Convert to tensor and reshape to (3, 240, 240)
     3. Apply Grayscale transformation -> (1, 240, 240)
     4. Normalize pixel values to [0, 1] range (if normalize=True)
     5. Add batch dimension -> (1, 1, 240, 240)
 
     Args:
-        image_path: Path to the image file
+        image_input: Either a file path (str) or a PIL Image object
         normalize: Whether to normalize pixel values to [0, 1] (default: True)
 
     Returns:
         Preprocessed tensor of shape (1, 1, 240, 240) ready for model input
+
+    Examples:
+        >>> # From file path (original usage)
+        >>> tensor = preprocess_image("/path/to/image.jpg")
+
+        >>> # From PIL Image (new usage for direct upload)
+        >>> from PIL import Image
+        >>> img = Image.open("/path/to/image.jpg")
+        >>> tensor = preprocess_image(img)
     """
-    # Load image
-    image = io.imread(image_path)
+    # Load image (handle both file paths and PIL Images)
+    if isinstance(image_input, str):
+        # File path provided - load using skimage
+        image = io.imread(image_input)
+    elif isinstance(image_input, Image.Image):
+        # PIL Image provided - convert to numpy array
+        image = np.array(image_input)
+    else:
+        raise TypeError(f"image_input must be a file path (str) or PIL Image, got {type(image_input)}")
 
     # Convert to tensor and reshape to (3, 240, 240) then apply Grayscale
     # This matches the training preprocessing pipeline
