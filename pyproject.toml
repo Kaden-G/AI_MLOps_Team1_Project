@@ -8,6 +8,7 @@ dependencies = [
     "fastapi>=0.122.0",
     "matplotlib>=3.10.7",
     "pandas>=2.3.3",
+    "python-multipart>=0.0.20",
     "scikit-image>=0.25.2",
     "scikit-learn>=1.7.2",
     "torch>=2.9.1",
