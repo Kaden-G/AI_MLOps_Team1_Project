@@ -15,6 +15,7 @@ from typing import AsyncGenerator
 import torch.optim as optim
 from enum import Enum
 import matplotlib.pyplot as plt
+from torchvision.transforms import Grayscale
 
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -35,6 +36,13 @@ class TrainRequest(BaseModel):
     model_type: AvailableModels = Field(default=AvailableModels.CNN)
     confusion_matrix_save_path: str | None = None
 
+class LoadModelRequest(BaseModel):
+    model_path: str
+    model_type: AvailableModels = AvailableModels.CNN
+
+class PredictRequest(BaseModel):
+    image: list[list[list[int]]]
+
 
 app = FastAPI(
 )
@@ -47,6 +55,7 @@ async def root():
 async def health_check():
     return {"status": "ok"}
 
+net: NN | CNN | None = None
 
 
 async def training_generator(request: TrainRequest) -> AsyncGenerator:
@@ -152,7 +161,7 @@ async def training_generator(request: TrainRequest) -> AsyncGenerator:
 
 
         # Saving at every epoch - we can change this if we want later.
-        torch.save(net.state_dict(), request.save_path)
+        torch.save(net.state_dict(), f"{request.save_path}_epoch{epoch}")
         yield f"Saving to: {request.save_path}\n"
     
     
@@ -169,6 +178,43 @@ async def train(request: TrainRequest):
     return StreamingResponse(training_generator(request))
     
 
+@app.post("/load_model")
+async def load_model(request: LoadModelRequest):
+    global net
+    match request.model_type:
+        case AvailableModels.NN:
+            net = NN()
+        case AvailableModels.CNN:
+            net = CNN()
+    try:
+        net.load_state_dict(torch.load(request.model_path, weights_only=True, map_location=DEVICE))
+        net = net.to(DEVICE)
+    except Exception as e:
+        return f"Failed: {e}"
+    return "Successful"
+
+
+@app.post("/predict")
+async def predict(request: PredictRequest):
+
+    image = torch.tensor(request.image, dtype=torch.float32).reshape((3, 240, 240))
+    
+
+    image = Grayscale()(image)
+    
+    print(image.shape)
+    net.eval()
+    with torch.no_grad():
+        inputs = image.to(DEVICE)
+        # Batch size, channels, x, y
+        outputs = net(inputs.reshape((1, 1, 240, 240))).squeeze().round().tolist()
+
+
+        if outputs:
+            return "Tumor detected"
+        else:
+            return "No tumor detected"
+    
 
 
 
