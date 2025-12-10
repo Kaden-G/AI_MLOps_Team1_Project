@@ -187,7 +187,7 @@ async def load_model(request: LoadModelRequest):
         case AvailableModels.CNN:
             net = CNN()
     try:
-        net.load_state_dict(torch.load(request.model_path, weights_only=False))
+        net.load_state_dict(torch.load(request.model_path, weights_only=True, map_location=DEVICE))
         net = net.to(DEVICE)
     except Exception as e:
         return f"Failed: {e}"
@@ -206,7 +206,8 @@ async def predict(request: PredictRequest):
     net.eval()
     with torch.no_grad():
         inputs = image.to(DEVICE)
-        outputs = net(inputs).squeeze().round().tolist()
+        # Batch size, channels, x, y
+        outputs = net(inputs.reshape((1, 1, 240, 240))).squeeze().round().tolist()
 
 
         if outputs:
